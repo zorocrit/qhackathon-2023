@@ -128,14 +128,75 @@ class qubitData:
             self.__operate__(0, 1, pi/2, 0, 0)
         ]
 
-    def solution(self, data):
+    def solution(self, count: int):
+        # generate datas
+        self.generateData()
         # for e Ry(pi/2)
         pdata = self.pDataSet
         mdata = self.mDataSet
-        irho = self.irho
+        sweeped = sweepData()
+        for exp in tqdm(range(33)):
+            result = []
+            trace = [1, 1, 0, 100, 100, 1000, 100]
+            prevData1, prevData2, coordinate = [
+                [0, 0, 0, 0],
+                [0, 0, 0, 0],
+                [0, 0, 0]
+            ]
+            start = time.time()
 
-        rho1 = np.kron(
-            pdata[0], self.identity)@irho@(np.kron(pdata[2], self.identity).conj().T)
+            gamma = 2 * pi * 1.071e-3  # [MHz/G]
+            upHyperTerm = 2 * pi * random.uniform(0.05, 0.8)
+            downHyperTerm = 2 * pi * random.uniform(0.05, 0.3)
 
-        # for N Rx(pi/2)
-        U_e2 = (U_H.conj().T)@(linalg.expm(-i*E * vari[0]/2)@U_H)
+            tmpState = (np.kron(pdata[0], self.i)
+                        )@self.irho@((np.kron(pdata[0], self.i)).conj().T)
+            ham = upHyperTerm * \
+                np.kron(self.sigmaZ, self.iz) + downHyperTerm*np.kron(self.sigmaZ, self.iX) + sweeped.mField * \
+                gamma*np.kron(self.i, self.iZ)  # Hamiltonian
+
+            eigvals = np.linalg.eigh(ham)[0]  # diagonalizing the Hamiltonian
+            eigvecs = -1*np.linalg.eigh(ham)[1]  # eigenvectors
+
+            exponent = np.diag(eigvals)
+            U_H = eigvecs.conj().T  # unitary matrix formed by eigenvectors
+
+            for genPulse in range(sweeped.tmpSweep):
+                # for tau/2
+                U_halfTau = (U_H.conj().T)@(linalg.expm(-self.i *
+                                                        exponent*sweeped.space[genPulse]/2)@U_H)
+                U_tau = (U_H.conj().T)@(linalg.expm(-self.i *
+                                                    exponent*sweeped.space[genPulse])@U_H)
+                rho_1 = U_halfTau @ tmpState @ (U_halfTau.conj().T)
+
+                for i in range(sweeped.piPulse - 1):
+                    rho_1 = U_tau @ np.kron(pdata[4], self.i) @ rho_1 @ (
+                        np.kron(pdata[4], self.i).conj().T) @ (U_tau.conj().T)  # N & tau
+                # last N & tau/2
+                rho_2 = U_halfTau @ np.kron(pdata[4], self.i) @ rho_1 @ (
+                    np.kron(pdata[4], self.i).conj().T) @ (U_halfTau.conj().T)
+                rho_3 = np.kron(
+                    pdata[1], self.i) @ rho_2 @ ((np.kron(pdata[2], self.i)).conj().T)    # last pi/2
+
+                nvState = (np.trace(self.sigmaZ@partial_trace(rho_3, 2))).real
+                result.append(nvState)
+
+            idx = result.index(min(result))
+            tmpTau = sweeped.space[idx]
+            tolerance = 1e-8
+            ham = upHyperTerm*np.kron(self.sigmaZ, self.iZ) + downHyperTerm*np.kron(self.sigmaZ, self.iX) + \
+                sweeped.mField*gamma*np.kron(self.i, self.iZ)  # Hamiltonian
+
+            eigvals = np.linalg.eigh(ham)[0]  # diagonalizing the Hamiltonian
+            eigvecs = -1*np.linalg.eigh(ham)[1]  # eigenvectors
+            exponent = np.diag(eigvals)
+            U_H = eigvecs.conj().T
+
+            for v in range(count):
+                prevExpData = [tau, 9, 0.1*tau, 9]
+                bounds = [(0.95*tau, 1.05*tau), (1.0, 25.0),
+                          (1.05*tau, 3 * tau), (1.0, 75.0)]  # boundary
+
+
+sol = qubitData()
+sol.solution(1)
