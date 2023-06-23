@@ -1,8 +1,6 @@
-### qhackathon-2023
+# qhackathon-2023
 
-## qhackathon 2023
-
-## CODE REVIEW
+### CODE REVIEW
 
 Result: Problem Function to Find tau, N value
 
